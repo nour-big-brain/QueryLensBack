@@ -3,38 +3,6 @@ const User = require('../models/user');
 const axios = require('axios');
 
 // ============================================
-// HELPER: Get Current User (For testing without auth)
-// ============================================
-async function getCurrentUser() {
-    // For now, just get the first user from database
-    // Later replace with: req.user from auth middleware
-    const user = await User.findOne({ email: "john.doe@example.com" });
-    if (!user) {
-        throw new Error("Test user not found. Please run addUser first.");
-    }
-    return {
-        id: user._id.toString(),
-        username: user.username
-    };
-}
-
-// ============================================
-// HELPER: Get Metabase Session
-// ============================================
-async function getMetabaseSession() {
-    const res = await axios.post("http://localhost:3000/api/session", {
-        email: process.env.EMAIL, 
-        password: process.env.PASSWORD
-    });
-    return res.data.id; 
-}
-
-// ============================================
-// HELPER: Create Dashboard in Metabase 
-// ============================================
-
-
-// ============================================
 // HELPER: Check if user has access to dashboard
 // ============================================
 function checkDashboardAccess(dashboard, userId, requiredPermission = 'view') {
@@ -68,14 +36,19 @@ function checkDashboardAccess(dashboard, userId, requiredPermission = 'view') {
 // ============================================
 async function createDashboard(req, res) {
     try {
-        const { name, description } = req.body;
-
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
-        const username = currentUser.username;
+        const { name, description, userId } = req.body;
 
         if (!name) {
             return res.status(400).json({ error: "Dashboard name is required" });
+        }
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
         }
 
         const existingDashboard = await dashBoard.findOne({ name, ownerId: userId });
@@ -87,7 +60,7 @@ async function createDashboard(req, res) {
             name,
             description,
             ownerId: userId,
-            ownerName: username,
+            ownerName: user.username,
             createdAt: Date.now()
         });
 
@@ -107,8 +80,16 @@ async function createDashboard(req, res) {
 // ============================================
 async function getDashboards(req, res) {
     try {
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
         
         // Get dashboards the user owns, is shared with, or are public
         const dashboards = await dashBoard.find({
@@ -132,12 +113,18 @@ async function getDashboards(req, res) {
 async function getDashboardById(req, res) {
     try {
         const { id } = req.params;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
         
-        const dashboardData = await dashBoard.findOne({ _id: id })
-           // .populate('comments.userId', 'username')
-            //.populate('sharedWith.userId', 'username');
+        const dashboardData = await dashBoard.findOne({ _id: id });
             
         if (!dashboardData) {
             return res.status(404).json({ error: "Dashboard not found" });
@@ -146,29 +133,6 @@ async function getDashboardById(req, res) {
         // Check access
         if (!checkDashboardAccess(dashboardData, userId, 'view')) {
             return res.status(403).json({ error: "Access denied" });
-        }
-        
-        // Fetch Metabase data if available
-        try {
-            if (dashboardData.metabaseDashboardId) {
-                const token = await getMetabaseSession();
-                const metabaseResponse = await axios.get(
-                    `http://localhost:3000/api/dashboard/${dashboardData.metabaseDashboardId}`,
-                    {
-                        headers: { "X-Metabase-Session": token }
-                    }
-                );
-                
-                return res.status(200).json({
-                    ...dashboardData.toObject(),
-                    metabaseData: metabaseResponse.data,
-                    userPermission: dashboardData.ownerId.toString() === userId 
-                        ? 'admin' 
-                        : dashboardData.sharedWith.find(s => s.userId.toString() === userId)?.permission || 'view'
-                });
-            }
-        } catch (metabaseError) {
-            console.error("Failed to fetch Metabase data:", metabaseError.message);
         }
         
         res.status(200).json(dashboardData);
@@ -185,9 +149,16 @@ async function getDashboardById(req, res) {
 async function updateDashboard(req, res) {
     try {
         const { id } = req.params;
-        const { name, description } = req.body;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { name, description, userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
 
         const dashboardData = await dashBoard.findOne({ _id: id });
         if (!dashboardData) {
@@ -217,8 +188,16 @@ async function updateDashboard(req, res) {
 async function deleteDashboard(req, res) {
     try {
         const { id } = req.params;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
 
         const dashboardData = await dashBoard.findOne({ _id: id });
         if (!dashboardData) {
@@ -244,12 +223,19 @@ async function deleteDashboard(req, res) {
 // ============================================
 async function addCardToDashboard(req, res) {
     try {
-        const { dashboardId, cardId } = req.body; // only require dashboardId and cardId
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { dashboardId, cardId, userId } = req.body;
 
         if (!cardId) {
             return res.status(400).json({ error: "Card ID is required" });
+        }
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
         }
 
         const dashboard = await dashBoard.findOne({ _id: dashboardId });
@@ -268,26 +254,9 @@ async function addCardToDashboard(req, res) {
         dashboard.updatedAt = Date.now();
         await dashboard.save();
 
-        // Only call Metabase if dashboard is synced
-        let metabaseData = null;
-        if (dashboard.metabaseDashboardId) {
-            try {
-                const token = await getMetabaseSession();
-                const response = await axios.post(
-                    `http://localhost:3000/api/dashboard/${dashboard.metabaseDashboardId}/cards`,
-                    { cardId }, // keep it simple
-                    { headers: { "X-Metabase-Session": token } }
-                );
-                metabaseData = response.data;
-            } catch (metabaseError) {
-                console.warn("Metabase sync failed:", metabaseError.message);
-            }
-        }
-
         res.status(200).json({ 
             message: "Card added to dashboard", 
-            dashboard, 
-            metabaseData 
+            dashboard
         });
 
     } catch (error) {
@@ -301,9 +270,16 @@ async function addCardToDashboard(req, res) {
 // ============================================
 async function removeCardFromDashboard(req, res) {
     try {
-        const { dashboardId, cardId } = req.body;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { dashboardId, cardId, userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
 
         const dashboard = await dashBoard.findOne({ _id: dashboardId });
         if (!dashboard) {
@@ -335,14 +311,21 @@ async function removeCardFromDashboard(req, res) {
 async function shareDashboard(req, res) {
     try {
         const { id } = req.params;
-        const { targetUserId, targetUsername, permission = 'view' } = req.body;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { targetUserId, targetUsername, permission = 'view', userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
         
         if (!['view', 'edit', 'admin'].includes(permission)) {
             return res.status(400).json({ error: "Invalid permission. Use 'view', 'edit', or 'admin'" });
         }
         
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
         const dashboard = await dashBoard.findOne({ _id: id });
         if (!dashboard) {
             return res.status(404).json({ error: "Dashboard not found" });
@@ -397,9 +380,16 @@ async function shareDashboard(req, res) {
 async function toggleDashboardPublic(req, res) {
     try {
         const { id } = req.params;
-        const { isPublic } = req.body;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { isPublic, userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
         
         const dashboard = await dashBoard.findOne({ _id: id });
         if (!dashboard) {
@@ -432,8 +422,16 @@ async function toggleDashboardPublic(req, res) {
 async function removeShareAccess(req, res) {
     try {
         const { id, targetUserId } = req.params;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
         
         const dashboard = await dashBoard.findOne({ _id: id });
         if (!dashboard) {
@@ -471,8 +469,16 @@ async function removeShareAccess(req, res) {
 // ============================================
 async function getSharedDashboards(req, res) {
     try {
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
         
         const dashboards = await dashBoard.find({
             'sharedWith.userId': userId
@@ -491,13 +497,19 @@ async function getSharedDashboards(req, res) {
 async function addComment(req, res) {
     try {
         const { id } = req.params;
-        const { text } = req.body;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
-        const username = currentUser.username;
-        
+        const { text, userId } = req.body;
+
         if (!text || text.trim().length === 0) {
             return res.status(400).json({ error: "Comment text is required" });
+        }
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
         }
         
         const dashboard = await dashBoard.findOne({ _id: id });
@@ -512,7 +524,7 @@ async function addComment(req, res) {
         
         const newComment = {
             userId,
-            username,
+            username: user.username,
             text: text.trim(),
             createdAt: Date.now()
         };
@@ -538,8 +550,16 @@ async function addComment(req, res) {
 async function getComments(req, res) {
     try {
         const { id } = req.params;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
         
         const dashboard = await dashBoard.findOne({ _id: id })
             .select('comments ownerId sharedWith isPublic');
@@ -567,8 +587,16 @@ async function getComments(req, res) {
 async function deleteComment(req, res) {
     try {
         const { id, commentId } = req.params;
-        const currentUser = await getCurrentUser();
-        const userId = currentUser.id;
+        const { userId } = req.body;
+
+        if (!userId) {
+            return res.status(400).json({ error: "User ID is required" });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
         
         const dashboard = await dashBoard.findOne({ _id: id });
         if (!dashboard) {

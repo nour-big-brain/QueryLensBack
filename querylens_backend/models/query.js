@@ -36,6 +36,11 @@ const querySchema = new mongoose.Schema({
     updatedAt: {
         type: Date, 
         default: Date.now
+    },
+    dashboard:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Dashboard",
+        required: false //change to true later
     }
 }, {
     timestamps: true,  // Automatically manages createdAt and updatedAt

@@ -103,7 +103,8 @@ async function getChartData(req, res) {
     if (!metabaseRes.data || metabaseRes.data.length === 0) {
       return res.status(200).json({
         title: savedQuery.title,
-        type: chartType || savedQuery.type || "bar",
+        description: savedQuery.description,
+        type: chartType || "bar",
         categories: [],
         series: [],
         message: "Query executed successfully but returned no data. Check if your table has data or if your query filters are too restrictive."

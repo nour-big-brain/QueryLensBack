@@ -175,7 +175,28 @@ async function buildQuery(req, res) {
     res.status(500).json({ error: "Internal server error", details: error.message });
   }
 }
+//assign query to a dashboard
+  async function assignQueryToDashboard(req, res) {
+    try {
+        const { queryId, dashboardId } = req.body;
+        const query = await Query.findById(queryId);
+        if (!query) {
+            res.status(404).json({ error: "Query not found" });
+        }
+
+        query.dashboard = dashboardId;
+        await query.save();
+        res.status(200).json({ message: "Query assigned to dashboard successfully", query });
+
+        console.log("Query assigned to dashboard:", queryId, dashboardId);
+    } catch (error) {
+        console.error("Error assigning query to dashboard:", error);
+        res.status(500).json({ error: "Internal server error", details: error.message });
+    }
+}
+
 
 module.exports = {
-  buildQuery
+  buildQuery,
+  assignQueryToDashboard
 };
