@@ -1,10 +1,40 @@
 const jwt = require("jsonwebtoken");
 const User = require("../models/user");
 const Role = require("../models/role");
+const mongoose = require("mongoose");
+
+// Check if dev mode is enabled
+const USE_AUTH = process.env.USE_AUTH !== 'false';
 
 // Verify JWT token
 const authenticateToken = async (req, res, next) => {
   try {
+    // Dev mode - bypass authentication
+    if (!USE_AUTH) {
+      // Create a valid MongoDB ObjectId for dev mode
+      const devObjectId = new mongoose.Types.ObjectId();
+      
+      req.userId = devObjectId;
+      req.user = {
+        _id: devObjectId,
+        username: 'dev-user',
+        email: 'dev@example.com',
+        roleId: {
+          permissions: [
+            'user.delete',
+            'user.deactivate',
+            'user.activate',
+            'role.create',
+            'role.modify',
+            'role.delete'
+          ]
+        }
+      };
+      console.log('🔓 Dev Mode: Auth bypassed for', req.path);
+      return next();
+    }
+
+    // Production mode - verify token
     const token = req.headers.authorization?.split(" ")[1];
     
     if (!token) {
@@ -24,6 +54,11 @@ const authenticateToken = async (req, res, next) => {
 const authorizePermission = (requiredPermissions) => {
   return async (req, res, next) => {
     try {
+      // Dev mode - skip permission check
+      if (!USE_AUTH) {
+        return next();
+      }
+
       if (!req.user) {
         return res.status(401).json({ error: "User not authenticated" });
       }
@@ -52,6 +87,11 @@ const authorizePermission = (requiredPermissions) => {
 // Check if user is admin (has admin role)
 const isAdmin = (req, res, next) => {
   try {
+    // Dev mode - allow all
+    if (!USE_AUTH) {
+      return next();
+    }
+
     if (!req.user) {
       return res.status(403).json({ error: "Not authorized" });
     }
