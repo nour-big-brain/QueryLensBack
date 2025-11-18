@@ -47,9 +47,13 @@ const register = async (req, res) => {
 
     await newUser.save();
 
-    // Generate token
+    // Generate token with MongoDB _id (not the UUID)
     const token = jwt.sign(
-      { userId: newUser._id },
+      { 
+        _id: newUser._id.toString(),  // MongoDB ObjectId as string
+        username: newUser.username,
+        email: newUser.email
+      },
       process.env.JWT_SECRET || "your-secret-key",
       { expiresIn: "7d" }
     );
@@ -57,7 +61,7 @@ const register = async (req, res) => {
     res.status(201).json({
       message: "User registered successfully",
       user: {
-        userId: newUser.userId,
+        _id: newUser._id.toString(),  // Return MongoDB _id (for API calls)
         username: newUser.username,
         email: newUser.email,
         roleId: newUser.roleId
@@ -97,8 +101,13 @@ const login = async (req, res) => {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
+    // Generate token with MongoDB _id (not the UUID)
     const token = jwt.sign(
-      { userId: user._id },
+      { 
+        _id: user._id.toString(),  // MongoDB ObjectId as string
+        username: user.username,
+        email: user.email
+      },
       process.env.JWT_SECRET || "your-secret-key",
       { expiresIn: "7d" }
     );
@@ -106,7 +115,7 @@ const login = async (req, res) => {
     res.json({
       message: "Login successful",
       user: {
-        userId: user.userId,
+        _id: user._id.toString(),  // Return MongoDB _id (for API calls)
         username: user.username,
         email: user.email,
         roleId: user.roleId
@@ -128,14 +137,18 @@ const refreshToken = async (req, res) => {
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "your-secret-key");
-    const user = await User.findById(decoded.userId);
+    const user = await User.findById(decoded._id);
 
     if (!user || !user.isActive) {
       return res.status(403).json({ error: "Cannot refresh token" });
     }
 
     const newToken = jwt.sign(
-      { userId: user._id },
+      { 
+        _id: user._id.toString(),  // MongoDB ObjectId as string
+        username: user.username,
+        email: user.email
+      },
       process.env.JWT_SECRET || "your-secret-key",
       { expiresIn: "7d" }
     );
@@ -145,9 +158,27 @@ const refreshToken = async (req, res) => {
     res.status(403).json({ error: "Invalid token" });
   }
 };
+const getUserByUsername = async (req, res) => {
+  try {
+    const { username } = req.params;
+    
+    const user = await User.findOne({ username });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({
+      _id: user._id.toString(),
+      username: user.username
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+};
 
 module.exports = {
   register,
   login,  
-  refreshToken
+  refreshToken,
+  getUserByUsername
 };

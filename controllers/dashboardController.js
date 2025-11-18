@@ -309,70 +309,86 @@ async function removeCardFromDashboard(req, res) {
 // SHARE DASHBOARD WITH USER
 // ============================================
 async function shareDashboard(req, res) {
-    try {
-        const { id } = req.params;
-        const { targetUserId, targetUsername, permission = 'view', userId } = req.body;
+  try {
+    const { id } = req.params;
+    const { targetUsername, permission, userId } = req.body;
 
-        if (!userId) {
-            return res.status(400).json({ error: "User ID is required" });
-        }
-        
-        if (!['view', 'edit', 'admin'].includes(permission)) {
-            return res.status(400).json({ error: "Invalid permission. Use 'view', 'edit', or 'admin'" });
-        }
-        
-        const user = await User.findById(userId);
-        if (!user) {
-            return res.status(404).json({ error: "User not found" });
-        }
-
-        const dashboard = await dashBoard.findOne({ _id: id });
-        if (!dashboard) {
-            return res.status(404).json({ error: "Dashboard not found" });
-        }
-        
-        // Only owner or admin can share
-        if (!checkDashboardAccess(dashboard, userId, 'admin')) {
-            return res.status(403).json({ error: "Only the owner or admins can share this dashboard" });
-        }
-        
-        // Don't share with owner
-        if (dashboard.ownerId.toString() === targetUserId) {
-            return res.status(400).json({ error: "Cannot share with dashboard owner" });
-        }
-        
-        // Check if already shared
-        const existingShare = dashboard.sharedWith.find(
-            share => share.userId.toString() === targetUserId
-        );
-        
-        if (existingShare) {
-            // Update permission
-            existingShare.permission = permission;
-            existingShare.sharedAt = Date.now();
-        } else {
-            // Add new share
-            dashboard.sharedWith.push({
-                userId: targetUserId,
-                username: targetUsername || 'Unknown User',
-                permission,
-                sharedAt: Date.now()
-            });
-        }
-        
-        dashboard.updatedAt = Date.now();
-        await dashboard.save();
-        
-        res.status(200).json({ 
-            message: "Dashboard shared successfully", 
-            dashboard 
-        });
-        
-    } catch (error) {
-        console.error("Error sharing dashboard:", error);
-        res.status(500).json({ error: "Internal server error" });
+    // Validate inputs
+    if (!targetUsername || !permission || !userId) {
+      return res.status(400).json({ 
+        error: 'targetUsername, permission, and userId are required' 
+      });
     }
+
+    // Validate permission
+    if (!['view', 'edit', 'admin'].includes(permission)) {
+      return res.status(400).json({ 
+        error: 'Invalid permission. Must be view, edit, or admin' 
+      });
+    }
+
+    // Find the target user by username
+    const targetUser = await User.findOne({ username: targetUsername });
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Prevent sharing with yourself
+    if (targetUser._id.toString() === userId) {
+      return res.status(400).json({ error: 'Cannot share dashboard with yourself' });
+    }
+
+    // Find the dashboard - USE dashBoard (lowercase d)
+    const dashboard = await dashBoard.findById(id).populate('sharedWith.userId');
+    if (!dashboard) {
+      return res.status(404).json({ error: 'Dashboard not found' });
+    }
+
+    // Check if current user is owner or admin
+    if (dashboard.ownerId.toString() !== userId) {
+      const access = dashboard.sharedWith?.find(
+        (s) => s.userId.toString() === userId
+      );
+      if (!access || access.permission !== 'admin') {
+        return res.status(403).json({ 
+          error: 'You do not have permission to share this dashboard' 
+        });
+      }
+    }
+
+    // Check if already shared with this user
+    const existingShareIndex = dashboard.sharedWith?.findIndex(
+      (s) => s.userId.toString() === targetUser._id.toString()
+    );
+
+    if (existingShareIndex !== undefined && existingShareIndex >= 0) {
+      // Update existing share permission
+      dashboard.sharedWith[existingShareIndex].permission = permission;
+    } else {
+      // Add new share
+      if (!dashboard.sharedWith) {
+        dashboard.sharedWith = [];
+      }
+      dashboard.sharedWith.push({
+        userId: targetUser._id,
+        permission: permission
+      });
+    }
+
+    // Save the updated dashboard
+    await dashboard.save();
+
+    res.json({
+      message: `Dashboard shared successfully with ${targetUsername}`,
+      dashboard
+    });
+  } catch (e) {
+    console.error('Error sharing dashboard:', e);
+    res.status(500).json({ error: e.message });
+  }
 }
+
+
 
 // ============================================
 // MAKE DASHBOARD PUBLIC/PRIVATE
