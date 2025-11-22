@@ -9,7 +9,7 @@ const dataSourceSchema = new mongoose.Schema({
   type: {
     type: String,
     required: true,
-    enum: ["sql", "nosql", "api"], //adjust as needed
+    enum: ["sql", "nosql", "api"], 
   },
   connectionCredentials: {
     host: String,
@@ -31,8 +31,8 @@ const dataSourceSchema = new mongoose.Schema({
     default: Date.now
   }
 }, {
-  timestamps: true,  // This automatically manages createdAt/updatedAt
-  strict: false      // This allows fields not in schema to be saved (temporary for debugging)
+  timestamps: true,  
+  strict: false      
 });
 
 module.exports = mongoose.model("DataSource", dataSourceSchema);

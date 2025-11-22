@@ -1,6 +1,6 @@
 const Role = require("../models/role");
 const User = require("../models/user");
-const AuditLog = require("../models/auditLog");
+const { createAuditLog } = require("./auditLogController");
 const { v4: uuidv4 } = require("uuid");
 
 // Create new role
@@ -32,15 +32,13 @@ const createRole = async (req, res) => {
 
     await newRole.save();
 
-    // Create audit log
-    const auditLog = new AuditLog({
-      logId: uuidv4(),
-      action: "ROLE_CREATED",
-      targetRoleId: newRole._id,
-      performedBy: req.userId,
-      details: { roleName: name, permissions }
-    });
-    await auditLog.save();
+    // Create audit log using helper function
+    await createAuditLog(
+      "ROLE_CREATED",
+      null,
+      req.userId,
+      { roleName: name, permissions }
+    );
 
     res.status(201).json({
       message: "Role created successfully",
@@ -109,13 +107,12 @@ const updateRole = async (req, res) => {
 
     await role.save();
 
-    // Create audit log
-    const auditLog = new AuditLog({
-      logId: uuidv4(),
-      action: "ROLE_MODIFIED",
-      targetRoleId: role._id,
-      performedBy: req.userId,
-      details: {
+    // Create audit log using helper function
+    await createAuditLog(
+      "ROLE_MODIFIED",
+      null,
+      req.userId,
+      {
         oldValues,
         newValues: {
           name: role.name,
@@ -123,8 +120,7 @@ const updateRole = async (req, res) => {
           permissions: role.permissions
         }
       }
-    });
-    await auditLog.save();
+    );
 
     res.json({
       message: "Role updated successfully",
@@ -163,15 +159,13 @@ const addPermissionToRole = async (req, res) => {
     role.permissions.push(permission);
     await role.save();
 
-    // Create audit log
-    const auditLog = new AuditLog({
-      logId: uuidv4(),
-      action: "ROLE_MODIFIED",
-      targetRoleId: role._id,
-      performedBy: req.userId,
-      details: { action: "permission_added", permission, roleName: role.name }
-    });
-    await auditLog.save();
+    // Create audit log using helper function
+    await createAuditLog(
+      "ROLE_MODIFIED",
+      null,
+      req.userId,
+      { action: "permission_added", permission, roleName: role.name }
+    );
 
     res.json({
       message: "Permission added successfully",
@@ -209,15 +203,13 @@ const removePermissionFromRole = async (req, res) => {
     role.permissions = role.permissions.filter(p => p !== permission);
     await role.save();
 
-    // Create audit log
-    const auditLog = new AuditLog({
-      logId: uuidv4(),
-      action: "ROLE_MODIFIED",
-      targetRoleId: role._id,
-      performedBy: req.userId,
-      details: { action: "permission_removed", permission, roleName: role.name }
-    });
-    await auditLog.save();
+    // Create audit log using helper function
+    await createAuditLog(
+      "ROLE_MODIFIED",
+      null,
+      req.userId,
+      { action: "permission_removed", permission, roleName: role.name }
+    );
 
     res.json({
       message: "Permission removed successfully",
@@ -254,15 +246,13 @@ const deleteRole = async (req, res) => {
     const roleName = role.name;
     await Role.findByIdAndDelete(id);
 
-    // Create audit log
-    const auditLog = new AuditLog({
-      logId: uuidv4(),
-      action: "ROLE_DELETED",
-      targetRoleId: id,
-      performedBy: req.userId,
-      details: { roleName, permissions: role.permissions }
-    });
-    await auditLog.save();
+    // Create audit log using helper function
+    await createAuditLog(
+      "ROLE_DELETED",
+      null,
+      req.userId,
+      { roleName, permissions: role.permissions }
+    );
 
     res.json({
       message: "Role deleted successfully",

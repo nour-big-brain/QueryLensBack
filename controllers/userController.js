@@ -1,6 +1,5 @@
 const User = require("../models/user");
-const AuditLog = require("../models/auditLog");
-const { v4: uuidv4 } = require("uuid");
+const { createAuditLog } = require("./auditLogController");
 
 // Get all users (excluding soft deleted)
 const getAllUsers = async (req, res) => {
@@ -14,6 +13,7 @@ const getAllUsers = async (req, res) => {
     res.status(500).json({ error: e.message });
   }
 };
+
 // Get single user by ID
 const getUserById = async (req, res) => {
   try {
@@ -47,7 +47,7 @@ const updateUser = async (req, res) => {
 
     if (username) user.username = username;
     if (email) user.email = email;
-    if(password) user.password=password;
+    if (password) user.password = password;
 
     await user.save();
 
@@ -82,15 +82,13 @@ const deactivateUser = async (req, res) => {
     user.isActive = false;
     await user.save();
 
-    // Create audit log
-    const auditLog = new AuditLog({
-      logId: uuidv4(),
-      action: "USER_DEACTIVATED",
-      targetUserId: user._id,
-      performedBy: req.userId,
-      details: { userId: user.userId, username: user.username }
-    });
-    await auditLog.save();
+    // Create audit log using helper function
+    await createAuditLog(
+      "USER_DEACTIVATED",
+      user._id,
+      req.userId,
+      { userId: user.userId, username: user.username }
+    );
 
     res.json({
       message: "User deactivated successfully",
@@ -122,15 +120,13 @@ const activateUser = async (req, res) => {
     user.isActive = true;
     await user.save();
 
-    // Create audit log
-    const auditLog = new AuditLog({
-      logId: uuidv4(),
-      action: "USER_ACTIVATED",
-      targetUserId: user._id,
-      performedBy: req.userId,
-      details: { userId: user.userId, username: user.username }
-    });
-    await auditLog.save();
+    // Create audit log using helper function
+    await createAuditLog(
+      "USER_ACTIVATED",
+      user._id,
+      req.userId,
+      { userId: user.userId, username: user.username }
+    );
 
     res.json({
       message: "User activated successfully",
@@ -163,15 +159,13 @@ const deleteUser = async (req, res) => {
     user.isActive = false;
     await user.save();
 
-    // Create audit log
-    const auditLog = new AuditLog({
-      logId: uuidv4(),
-      action: "USER_DELETED",
-      targetUserId: user._id,
-      performedBy: req.userId,
-      details: { userId: user.userId, username: user.username, deletedAt: user.deletedAt }
-    });
-    await auditLog.save();
+    // Create audit log using helper function
+    await createAuditLog(
+      "USER_DELETED",
+      user._id,
+      req.userId,
+      { userId: user.userId, username: user.username, deletedAt: user.deletedAt }
+    );
 
     res.json({
       message: "User deleted successfully",
@@ -204,15 +198,13 @@ const assignRoleToUser = async (req, res) => {
     user.roleId = roleId;
     await user.save();
 
-    // Create audit log
-    const auditLog = new AuditLog({
-      logId: uuidv4(),
-      action: "USER_ROLE_ASSIGNED",
-      targetUserId: user._id,
-      performedBy: req.userId,
-      details: { previousRole, newRole: roleId, username: user.username }
-    });
-    await auditLog.save();
+    // Create audit log using helper function
+    await createAuditLog(
+      "USER_ROLE_ASSIGNED",
+      user._id,
+      req.userId,
+      { previousRole, newRole: roleId, username: user.username }
+    );
 
     res.json({
       message: "Role assigned successfully",

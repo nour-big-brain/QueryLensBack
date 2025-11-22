@@ -13,7 +13,7 @@ const querySchema = new mongoose.Schema({
     },
     dataSource: { 
         type: mongoose.Schema.Types.ObjectId, 
-        ref: "DataSource"  // Changed to match your model name
+        ref: "DataSource"  
     },
     type: {
         type: String,

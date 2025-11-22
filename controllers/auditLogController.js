@@ -1,4 +1,19 @@
 const AuditLog = require("../models/auditLog");
+const createAuditLog = async (action, targetUserId, performedBy, details) => {
+  try {
+    const auditLog = new AuditLog({
+      logId: `${action}-${Date.now()}`,
+      action,
+      targetUserId,
+      performedBy,
+      details
+    });
+    await auditLog.save();
+    return auditLog;
+  } catch (e) {
+    console.error('Failed to create audit log:', e.message);
+  }
+};
 
 // Get all audit logs
 const getAllAuditLogs = async (req, res) => {
@@ -110,6 +125,7 @@ const getAuditLogsByAdmin = async (req, res) => {
 module.exports = {
   getAllAuditLogs,
   getAuditLogById,
+  createAuditLog,
   getAuditLogsByUser,
   getAuditLogsByAction,
   getAuditLogsByAdmin
