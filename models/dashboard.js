@@ -44,8 +44,6 @@ const dashboardSchema = new mongoose.Schema({
     description: String,
     metabaseDashboardId: Number,
     cards: [Number], 
-
-    // Owner information
     ownerId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
@@ -53,17 +51,14 @@ const dashboardSchema = new mongoose.Schema({
     },
     ownerName: String,
 
-    // Sharing settings
     isPublic: {
         type: Boolean,
         default: false
     },
     sharedWith: [shareSchema],
 
-    // Collaboration
     comments: [commentSchema],
 
-    // Timestamps
     createdAt: {
         type: Date,
         default: Date.now

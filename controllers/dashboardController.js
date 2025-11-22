@@ -715,11 +715,10 @@ async function getCommentsList(req, res) {
     }
 }
 
-// Make sure to add this to your module.exports
 module.exports = {
     createDashboard,
     getDashboards,
-    getDashboardsByUser,  // ADD THIS
+    getDashboardsByUser,  
     getDashboardById,
     getCommentsList,
     updateDashboard,

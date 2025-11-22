@@ -24,6 +24,7 @@ async function createMetabaseCard(queryData, token, metabaseDbId, collectionId) 
   console.log("Creating Metabase card with:", {
     title: queryData.title,
     chartType: queryData.chartType,
+    type: queryData.type,
     metabaseDbId,
     collectionId,
     queryDefinition: queryData.queryDefinition
@@ -53,17 +54,29 @@ async function createMetabaseCard(queryData, token, metabaseDbId, collectionId) 
     visualizationSettings["graph.show_values"] = true;
   }
 
-  const payload = {
-    name: queryData.title.trim(),
-    description: queryData.description || "",
-    dataset_query: {
+  // Handle native (SQL) queries vs builder queries
+  let datasetQuery;
+  if (queryData.type === "native") {
+    datasetQuery = {
+      type: "native",
+      native: queryData.queryDefinition.native || queryData.queryDefinition,
+      database: metabaseDbId
+    };
+  } else {
+    datasetQuery = {
       type: "query",
       database: metabaseDbId,
       query: queryData.queryDefinition || {}
-    },
+    };
+  }
+
+  const payload = {
+    name: queryData.title.trim(),
+    description: queryData.description || "",
+    dataset_query: datasetQuery,
     display: displayType,
     visualization_settings: visualizationSettings,
-    collection_id: collectionId  // ← null = Root, number = real collection
+    collection_id: collectionId  
   };
 
   console.log("Payload for Metabase card:", JSON.stringify(payload, null, 2));
@@ -107,6 +120,15 @@ async function buildQuery(req, res) {
       return res.status(400).json({ error: 'Missing required fields: title, dataSource, userId' });
     }
 
+    // Validate type
+    const validTypes = ['native', 'builder'];
+    const queryType = type || 'builder';
+    if (!validTypes.includes(queryType)) {
+      return res.status(400).json({
+        error: 'Invalid query type. Must be one of: ' + validTypes.join(', ')
+      });
+    }
+
     const validChartTypes = ['bar', 'line', 'area', 'pie', 'donut', 'radar', 'heatmap', 'scatter', 'mixed'];
     if (!chartType || !validChartTypes.includes(chartType)) {
       return res.status(400).json({
@@ -114,11 +136,22 @@ async function buildQuery(req, res) {
       });
     }
 
+    // Validate queryDefinition based on type
+    if (!queryDefinition) {
+      return res.status(400).json({ error: 'queryDefinition is required' });
+    }
+
+    if (queryType === 'native' && !queryDefinition.native?.query) {
+      return res.status(400).json({ 
+        error: 'For native queries, queryDefinition must contain native.query with SQL string' 
+      });
+    }
+
     const query = new Query({
       title,
       description,
       dataSource,
-      type: type || 'builder',
+      type: queryType,
       chartType,
       queryDefinition,
       createdBy: userId,
@@ -130,6 +163,7 @@ async function buildQuery(req, res) {
     console.log("Query saved to MongoDB:", {
       queryId: query._id,
       title: query.title,
+      type: query.type,
       dataSourceName: savedQuery.dataSource.name
     });
 

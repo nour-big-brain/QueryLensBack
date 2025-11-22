@@ -18,7 +18,7 @@ const dataSourceSchema = new mongoose.Schema({
     password: String,
     database: String
   },
-  metabaseDbId: {  //MAKE SURE THIS EXISTS
+  metabaseDbId: {  
     type: Number,
     default: null
   },

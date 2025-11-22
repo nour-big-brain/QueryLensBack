@@ -26,14 +26,13 @@ const querySchema = new mongoose.Schema({
     default: 'bar',
     required: true,
   },
-    // Store the entire query definition as a flexible object
     queryDefinition: {
-        type: mongoose.Schema.Types.Mixed,  // This allows any structure
+        type: mongoose.Schema.Types.Mixed,  
         required: true
     },
     createdBy: { 
         type: mongoose.Schema.Types.ObjectId, 
-        ref: "User"  // Changed to match your model name
+        ref: "User"  
     },
     createdAt: {
         type: Date, 
@@ -46,11 +45,11 @@ const querySchema = new mongoose.Schema({
     dashboard:{
         type: mongoose.Schema.Types.ObjectId,
         ref: "Dashboard",
-        required: false //change to true later
+        required: false 
     }
 }, {
-    timestamps: true,  // Automatically manages createdAt and updatedAt
-    strict: false      // Allow fields not in schema (for flexibility)
+    timestamps: true,  
+    strict: false      
 });
 
 module.exports = mongoose.model("Query", querySchema);
